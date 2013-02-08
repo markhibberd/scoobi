@@ -150,8 +150,8 @@ object build extends Build {
   lazy val releaseSettings = ReleasePlugin.releaseSettings ++ Seq(
     tagName <<= (version in ThisBuild) map (v => "SCOOBI-" + v),
     releaseProcess := Seq[ReleaseStep](
-      checkSnapshotDependencies,
-      updateLicences,
+     // checkSnapshotDependencies,
+     // updateLicences,
       generateSite,
       inquireVersions,
       setReleaseVersion,
@@ -184,7 +184,7 @@ object build extends Build {
     st.log.info("Generating the documentation")
     val extracted = Project.extract(st)
     val ref: ProjectRef = extracted.get(thisProjectRef)
-    extracted.runTask(test in (Test, releaseTest) in ref, st)._1
+    extracted.runTask(releaseTest in ref, st)._1
   }
 
   lazy val releaseExecuteTests = TaskKey[Tests.Output]("release-execute-tests", "Executes all tests, producing a report.")
