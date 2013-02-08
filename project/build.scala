@@ -168,7 +168,7 @@ object build extends Build {
   Defaults.testSettings ++
   Defaults.configSettings ++
 //  Defaults.testTaskOptions(releaseExecuteTests) ++
-//  Defaults.testTaskOptions(releaseTest) ++
+  Defaults.testTaskOptions(releaseTest) ++
   Seq(configuration := Configurations.Default, tags := Seq()) ++
   Seq(releaseExecuteImpl, releaseTestImpl) ++
   (testOptions in (Test, releaseTest) ++= Seq(Tests.Filter(_.endsWith("Index")), Tests.Argument("html")))
