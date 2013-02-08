@@ -184,7 +184,7 @@ object build extends Build {
     st.log.info("Generating the documentation")
     val extracted = Project.extract(st)
     val ref: ProjectRef = extracted.get(thisProjectRef)
-    extracted.runTask(releaseTest in Test in ref, st)._1
+    extracted.runTask(releaseExecuteTests in Test in ref, st)._1
   }
 
   lazy val releaseExecuteTests = TaskKey[Tests.Output]("release-execute-tests", "Executes all tests, producing a report.")
