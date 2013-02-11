@@ -31,12 +31,14 @@ object build extends Build {
                publicationSettings      ++
                notificationSettings     ++
                releaseSettings
-  )
+  ) aggregate (fatjar, pageRank, scoobding, wordCount)
 
+  lazy val scoobiVersion = SettingKey[String]("scoobi-version", "defines the current Scoobi version")
   lazy val scoobiSettings: Seq[Settings] = Seq(
     name := "scoobi",
     organization := "com.nicta",
     version := "0.7.3-RELEASE-TRIAL-cdh4",
+    scoobiVersion in GlobalScope <<= version,
     scalaVersion := "2.9.2")
 
   lazy val dependenciesSettings: Seq[Settings] = Seq(
@@ -148,7 +150,19 @@ object build extends Build {
     )
   )
 
-  /** Release process */
+  /**
+   * EXAMPLE PROJECTS
+   */
+  def project(name: String) = Project(id = name, base = file("examples/"+name))
+  lazy val avro      = project("avro")
+  lazy val fatjar    = project("fatjar")
+  lazy val pageRank  = project("pageRank")
+  lazy val scoobding = project("scoobding")
+  lazy val wordCount = project("wordCount")
+
+  /**
+   * RELEASE PROCESS
+   */
   lazy val releaseSettings =
     ReleasePlugin.releaseSettings ++ Seq(
     tagName <<= (version in ThisBuild) map (v => "SCOOBI-" + v),
