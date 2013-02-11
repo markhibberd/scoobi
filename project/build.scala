@@ -12,6 +12,7 @@ import ReleasePlugin._
 import ReleaseKeys._
 import ReleaseStateTransformations._
 import ls.Plugin._
+import LsKeys._
 import Utilities._
 import Defaults._
 
@@ -149,48 +150,33 @@ object build extends Build {
 
   /** Release process */
   lazy val releaseSettings =
-    ReleasePlugin.releaseSettings ++
-      Seq(
-//    tagName <<= (version in ThisBuild) map (v => "SCOOBI-" + v),
+    ReleasePlugin.releaseSettings ++ Seq(
+    tagName <<= (version in ThisBuild) map (v => "SCOOBI-" + v),
     releaseProcess := Seq[ReleaseStep](
-     // checkSnapshotDependencies,
-     // updateLicences,
-//      generateUserGuide,
-      generateReadMe//,
-//      inquireVersions,
-//      setReleaseVersion,
-//      commitReleaseVersion,
-//      tagRelease,
-//      publishArtifacts,
-//      setNextVersion,
-//      commitNextVersion,
-//      pushChanges
+      checkSnapshotDependencies,
+      updateLicences,
+      inquireVersions,
+      setReleaseVersion,
+      commitReleaseVersion,
+      generateUserGuide,
+      generateReadMe,
+      tagRelease,
+      publishArtifacts,
+      publishToLs,
+      setNextVersion,
+      commitNextVersion,
+      pushChanges
     )
   ) ++
-  testTaskDefinition(generateUserGuideTask, Seq(Tests.Filter(_.endsWith("Index")), Tests.Argument("html"))) ++
-  testTaskDefinition(generateReadMeTask, Seq(Tests.Filter(_.endsWith("ReadMe")), Tests.Argument("markup"))) ++
-  testTaskDefinition(checkUrlsTask, Seq(Tests.Filter(_.endsWith("Index")), Tests.Argument("html", "checkurls")))
+  documentationSettings
 
-  def testTaskDefinition(task: TaskKey[Tests.Output], options: Seq[TestOption]) =
-    Seq(testTask(task))                          ++
-    inScope(GlobalScope)(defaultTestTasks(task)) ++
-    inConfig(Test)(testTaskOptions(task))        ++
-    (testOptions in (Test, task) ++= options)
-
-  lazy val generateUserGuideTask = TaskKey[Tests.Output]("generate-user-guide", "generate the user guide")
-  lazy val generateUserGuide     = executeTestTask(generateUserGuideTask, "Generating the User Guide")
-
-  lazy val generateReadMeTask = TaskKey[Tests.Output]("generate-readme", "generate the README")
-  lazy val generateReadMe     = ReleaseStep { st: State =>
-    executeTestTask(generateReadMeTask, "Generating the README file").apply(st)
-    IO.copyFile(file("target/specs2-reports/README.md"), file("README.md"))
-    st
-  }
-
-  lazy val checkUrlsTask = TaskKey[Tests.Output]("check-urls", "check the User Guide urls")
-  lazy val checkUrls     = executeTestTask(checkUrlsTask, "Checking the urls of the User Guide")
-
-
+  /**
+   * DOCUMENTATION
+   */
+  lazy val documentationSettings =
+    testTaskDefinition(generateUserGuideTask, Seq(Tests.Filter(_.endsWith("Index")), Tests.Argument("html"))) ++
+    testTaskDefinition(generateReadMeTask, Seq(Tests.Filter(_.endsWith("ReadMe")), Tests.Argument("markup"))) ++
+    testTaskDefinition(checkUrlsTask, Seq(Tests.Filter(_.endsWith("Index")), Tests.Argument("html", "checkurls")))
 
   lazy val updateLicences = ReleaseStep { st =>
     st.log.info("Updating the license headers")
@@ -198,17 +184,56 @@ object build extends Build {
     commitCurrent("added license headers where missing")(st)
   }
 
-  def executeTestTask(task: TaskKey[Tests.Output], info: String) = ReleaseStep { st: State =>
-    st.log.info(info)
-    val extracted = Project.extract(st)
-    val ref: ProjectRef = extracted.get(thisProjectRef)
-    extracted.runTask(task in Test in ref, st)._1
+  lazy val generateUserGuideTask = TaskKey[Tests.Output]("generate-user-guide", "generate the user guide")
+  lazy val generateUserGuide     = ReleaseStep { st: State =>
+    val st2 = executeStepTask(generateUserGuideTask, "Generating the User Guide")(st)
+    commitCurrent("updated the UserGuide")(st2)
   }
+
+  lazy val generateReadMeTask = TaskKey[Tests.Output]("generate-readme", "generate the README")
+  lazy val generateReadMe     = ReleaseStep { st: State =>
+    val st2 = executeStepTask(generateReadMeTask, "Generating the README file")(st)
+    IO.copyFile(file("target/specs2-reports/README.md"), file("README.md"))
+    commitCurrent("updated the README file")(st2)
+  }
+
+  lazy val checkUrlsTask = TaskKey[Tests.Output]("check-urls", "check the User Guide urls")
+  lazy val checkUrls     = executeStepTask(checkUrlsTask, "Checking the urls of the User Guide")
+
+  def testTaskDefinition(task: TaskKey[Tests.Output], options: Seq[TestOption]) =
+    Seq(testTask(task))                          ++
+    inScope(GlobalScope)(defaultTestTasks(task)) ++
+    inConfig(Test)(testTaskOptions(task))        ++
+    (testOptions in (Test, task) ++= options)
 
   def testTask(task: TaskKey[Tests.Output]) =
     task <<= (streams in Test, loadedTestFrameworks in Test, testLoader in Test,
       testGrouping in Test in test, testExecution in Test in task,
       fullClasspath in Test in test, javaHome in test) flatMap Defaults.allTestGroupsTask
+
+  /**
+   * NOTIFICATION
+   */
+  lazy val publishToLs = ReleaseStep { st: State =>
+    val st2 = executeTask(writeVersion, "writing ls.implicit.ly dependencies")(st)
+    val st3 = commitCurrent("added a new ls file")(st2)
+    val st4 = pushCurrent(st3)
+    executeTask(lsync, "synchronizing with the ls.implict.ly website")(st4)
+  }
+
+  /**
+   * UTILITIES
+   */
+  private def executeStepTask(task: TaskKey[_], info: String) = ReleaseStep { st: State =>
+    executeTask(task, info)(st)
+  }
+
+  private def executeTask(task: TaskKey[_], info: String) = (st: State) => {
+    st.log.info(info)
+    val extracted = Project.extract(st)
+    val ref: ProjectRef = extracted.get(thisProjectRef)
+    extracted.runTask(task in Test in ref, st)._1
+  }
 
   private def commitCurrent(commitMessage: String): State => State = { st: State =>
     vcs(st).add(".") !! st.log
@@ -218,6 +243,11 @@ object build extends Build {
       vcs(st).commit(commitMessage) ! st.log
       st
     } else st
+  }
+
+  private def pushCurrent: State => State = { st: State =>
+    vcs(st).pushChanges !! st.log
+    st
   }
 
   private def vcs(st: State): Vcs = {
