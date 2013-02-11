@@ -155,7 +155,7 @@ object build extends Build {
     releaseProcess := Seq[ReleaseStep](
      // checkSnapshotDependencies,
      // updateLicences,
-      generateSite //,
+      generateSite//,
 //      inquireVersions,
 //      setReleaseVersion,
 //      commitReleaseVersion,
@@ -166,10 +166,16 @@ object build extends Build {
 //      pushChanges
     )
   ) ++
-  (tags in Test := Seq(Tags.Test -> 1)) ++
-  inConfig(Test)(testTaskOptions(releaseTest)) ++
-  Seq(releaseExecuteImpl, releaseTestImpl) ++
-  (testOptions in Test ++= Seq(Tests.Filter(_.endsWith("Index")), Tests.Argument("html")))
+  testTaskDefinition(generateSiteTask, Seq(Tests.Filter(_.endsWith("Index")), Tests.Argument("html")))
+
+  def testTaskDefinition(task: TaskKey[Tests.Output], options: Seq[TestOption]) =
+    Seq(testTask(task))                          ++
+    inScope(GlobalScope)(defaultTestTasks(task)) ++
+    inConfig(Test)(testTaskOptions(task))        ++
+    (testOptions in (Test, task) ++= options)
+
+  lazy val generateSiteTask = TaskKey[Tests.Output]("generate-site", "generate the project site")
+  lazy val generateSite = executeTestTask(generateSiteTask, "Generating the User Guide")
 
   lazy val updateLicences = ReleaseStep { st =>
     st.log.info("Updating the license headers")
@@ -177,24 +183,17 @@ object build extends Build {
     commitCurrent("added license headers where missing")(st)
   }
 
-  lazy val generateSite = ReleaseStep { st: State =>
-    st.log.info("Generating the documentation")
+  def executeTestTask(task: TaskKey[Tests.Output], info: String) = ReleaseStep { st: State =>
+    st.log.info(info)
     val extracted = Project.extract(st)
     val ref: ProjectRef = extracted.get(thisProjectRef)
-    extracted.runTask(releaseTest in Test in ref, st)._1
+    extracted.runTask(task in Test in ref, st)._1
   }
 
-  lazy val releaseExecuteTests = TaskKey[Tests.Output]("release-execute-tests", "Executes all tests, producing a report.")
-  lazy val releaseTest         = TaskKey[Unit]("release-test", "Executes tests for a release.")
-
-  lazy val releaseExecuteImpl =
-    releaseExecuteTests <<= (streams in test, loadedTestFrameworks in Test, testLoader in Test, testGrouping in Test in test, testExecution in Test in test, fullClasspath in Test in test, javaHome in test) flatMap Defaults.allTestGroupsTask
-
-  lazy val releaseTestImpl =
-    releaseTest <<= (streams, state, releaseExecuteTests, resolvedScoped) map { (s, st, res, rs) =>
-      implicit val display = Project.showContextKey(st)
-      Tests.showResults(s.log, res, "No tests to run for " + display(rs))
-    }
+  def testTask(task: TaskKey[Tests.Output]) =
+    task <<= (streams in Test, loadedTestFrameworks in Test, testLoader in Test,
+      testGrouping in Test in test, testExecution in Test in task,
+      fullClasspath in Test in test, javaHome in test) flatMap Defaults.allTestGroupsTask
 
   private def commitCurrent(commitMessage: String): State => State = { st: State =>
     vcs(st).add(".") !! st.log
