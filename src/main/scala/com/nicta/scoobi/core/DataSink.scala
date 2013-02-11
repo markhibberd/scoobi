@@ -24,27 +24,31 @@ import org.apache.hadoop.fs._
 import org.apache.hadoop.conf.Configuration
 import Data._
 import io.text.TextInput
+import impl.ScoobiConfigurationImpl
+import impl.rtt.ScoobiWritable
 
 /**
  * An output store from a MapReduce job
  */
 trait DataSink[K, V, B] extends Sink { outer =>
   lazy val id = ids.get
+  lazy val stringId = id.toString
 
-  def outputFormat: Class[_ <: OutputFormat[K, V]]
-  def outputKeyClass: Class[K]
-  def outputValueClass: Class[V]
+  def outputFormat(implicit sc: ScoobiConfiguration): Class[_ <: OutputFormat[K, V]]
+  def outputKeyClass(implicit sc: ScoobiConfiguration): Class[K]
+  def outputValueClass(implicit sc: ScoobiConfiguration): Class[V]
   def outputConverter: OutputConverter[K, V, B]
   def outputCheck(implicit sc: ScoobiConfiguration)
   def outputConfigure(job: Job)(implicit sc: ScoobiConfiguration)
 
   def outputCompression(codec: CompressionCodec, compressionType: CompressionType = CompressionType.BLOCK) = new DataSink[K, V, B] {
-    def outputFormat: Class[_ <: OutputFormat[K, V]]                = outer.outputFormat
-    def outputKeyClass: Class[K]                                    = outer.outputKeyClass
-    def outputValueClass: Class[V]                                  = outer.outputValueClass
-    def outputConverter: OutputConverter[K, V, B]                   = outer.outputConverter
-    def outputCheck(implicit sc: ScoobiConfiguration)               { outer.outputCheck(sc) }
-    def outputConfigure(job: Job)(implicit sc: ScoobiConfiguration) { outer.outputConfigure(job) }
+    def outputFormat(implicit sc: ScoobiConfiguration): Class[_ <: OutputFormat[K, V]] = outer.outputFormat
+    def outputKeyClass(implicit sc: ScoobiConfiguration): Class[K]                     = outer.outputKeyClass
+    def outputValueClass(implicit sc: ScoobiConfiguration): Class[V]                   = outer.outputValueClass
+    def outputConverter: OutputConverter[K, V, B]                                      = outer.outputConverter
+    def outputCheck(implicit sc: ScoobiConfiguration)                                  { outer.outputCheck(sc) }
+    def outputConfigure(job: Job)(implicit sc: ScoobiConfiguration)                    { outer.outputConfigure(job) }
+    override def outputSetup(implicit configuration: Configuration)                    { outer.outputSetup }
 
     /** configure the job so that the output is compressed */
     override def configureCompression(configuration: Configuration) = {
@@ -72,6 +76,8 @@ trait DataSink[K, V, B] extends Sink { outer =>
     Option(FileOutputFormat.getOutputPath(jobCopy))
   }
 
+  def outputSetup(implicit configuration: Configuration) {}
+
   private [scoobi]
   def write(values: Seq[_], recordWriter: RecordWriter[_,_]) {
     values foreach { value =>
@@ -88,12 +94,14 @@ private[scoobi]
 trait Sink { outer =>
   /** unique id for this Sink */
   def id: Int
+  /** unique id for this Sink, as a string. Can be used to create a file path */
+  def stringId: String
   /** The OutputFormat specifying the type of output for this DataSink. */
-  def outputFormat: Class[_ <: OutputFormat[_, _]]
+  def outputFormat(implicit sc: ScoobiConfiguration): Class[_ <: OutputFormat[_, _]]
   /** The Class of the OutputFormat's key. */
-  def outputKeyClass: Class[_]
+  def outputKeyClass(implicit sc: ScoobiConfiguration): Class[_]
   /** The Class of the OutputFormat's value. */
-  def outputValueClass: Class[_]
+  def outputValueClass(implicit sc: ScoobiConfiguration): Class[_]
   /** Maps the type consumed by this DataSink to the key-values of its OutputFormat. */
   def outputConverter: OutputConverter[_, _, _]
   /** Check the validity of the DataSink specification. */
@@ -102,6 +110,8 @@ trait Sink { outer =>
   def outputConfigure(job: Job)(implicit sc: ScoobiConfiguration)
   /** @return the path for this Sink. */
   def outputPath(implicit sc: ScoobiConfiguration): Option[Path]
+  /** This method is called just before writing data to the sink */
+  def outputSetup(implicit configuration: Configuration)
 
   /** Set the compression configuration */
   def outputCompression(codec: CompressionCodec, compressionType: CompressionType = CompressionType.BLOCK): Sink
@@ -146,32 +156,35 @@ trait DataSinks {
 private[scoobi]
 trait Bridge extends Source with Sink {
   def bridgeStoreId: String
+  def stringId = bridgeStoreId
   def readAsIterable(implicit sc: ScoobiConfiguration): Iterable[_]
 }
 
 object Bridge {
   def create(source: Source, sink: Sink, bridgeId: String): Bridge = new Bridge {
     def bridgeStoreId = bridgeId
-    override def id = source.id
+    override def id = sink.id
+    override def toString = "Bridge "+bridgeId+sink.outputPath(new ScoobiConfigurationImpl).map(path => " ("+path+")").getOrElse("")
 
     def inputFormat = source.inputFormat
-    def inputCheck(implicit sc: ScoobiConfiguration) = source.inputCheck
-    def inputConfigure(job: Job)(implicit sc: ScoobiConfiguration) = source.inputConfigure(job)
+    def inputCheck(implicit sc: ScoobiConfiguration) { source.inputCheck }
+    def inputConfigure(job: Job)(implicit sc: ScoobiConfiguration) { source.inputConfigure(job) }
     def inputSize(implicit sc: ScoobiConfiguration) = source.inputSize
     def fromKeyValueConverter = source.fromKeyValueConverter
-    private[scoobi] def read(reader: RecordReader[_,_], mapContext: InputOutputContext, read: Any => Unit) = source.read(reader, mapContext, read)
+    private[scoobi] def read(reader: RecordReader[_,_], mapContext: InputOutputContext, read: Any => Unit) { source.read(reader, mapContext, read) }
 
-    def outputFormat = sink.outputFormat
-    def outputKeyClass = sink.outputKeyClass
-    def outputValueClass = sink.outputValueClass
+    def outputFormat(implicit sc: ScoobiConfiguration) = sink.outputFormat
+    def outputKeyClass(implicit sc: ScoobiConfiguration) = sink.outputKeyClass
+    def outputValueClass(implicit sc: ScoobiConfiguration) = sink.outputValueClass
     def outputConverter = sink.outputConverter
-    def outputCheck(implicit sc: ScoobiConfiguration) {}
-    def outputConfigure(job: Job)(implicit sc: ScoobiConfiguration) = sink.outputConfigure(job)
+    def outputCheck(implicit sc: ScoobiConfiguration) { sink.outputCheck }
+    def outputConfigure(job: Job)(implicit sc: ScoobiConfiguration) { sink.outputConfigure(job) }
+    def outputSetup(implicit configuration: Configuration) { sink.outputSetup }
     def outputPath(implicit sc: ScoobiConfiguration) = sink.outputPath
     def outputCompression(codec: CompressionCodec, compressionType: CompressionType = CompressionType.BLOCK) = sink.outputCompression(codec, compressionType)
     def configureCompression(configuration: Configuration) = sink.configureCompression(configuration)
     private[scoobi] def isCompressed = sink.isCompressed
-    private [scoobi] def write(values: Seq[_], recordWriter: RecordWriter[_,_]) = sink.write(values, recordWriter)
+    private [scoobi] def write(values: Seq[_], recordWriter: RecordWriter[_,_]) { sink.write(values, recordWriter) }
     override def toSource: Option[Source] = Some(source)
 
     def readAsIterable(implicit sc: ScoobiConfiguration) =

@@ -32,8 +32,10 @@ trait MscrsDefinition extends Layering {
   /** a floating node is a parallelDo node that's not a descendent of a gbk node and is not a reducer */
   lazy val isFloating: CompNode => Boolean = attr("isFloating") {
     case pd: ParallelDo => (transitiveUses(pd).forall(!isGroupByKey) || uses(pd).exists(isMaterialise) || uses(pd).exists(isRoot) || !parent(pd).isDefined) &&
-                           !isReducer(pd) &&
-                           (!isInsideMapper(pd) || descendents(pd.env).exists(isGroupByKey) || hasMaterialisedEnv(pd))
+                            !isReducer(pd) &&
+                           (!inputs(pd).exists(isFloating)) ||
+                            descendents(pd.env).exists(isGroupByKey) ||
+                            hasMaterialisedEnv(pd)
     case _              => false
   }
 
@@ -46,9 +48,18 @@ trait MscrsDefinition extends Layering {
 
   /** Mscrs for parallel do nodes which are not part of a Gbk mscr */
   lazy val pdMscrs: Layer[T] => Seq[Mscr] = attr("parallelDo mscrs") { case layer =>
-    val inputChannels = floatingParallelDos(layer).flatMap(pd => pd.ins.map(source => new FloatingInputChannel(source)))
+    val inputChannels = floatingParallelDos(layer).flatMap(pd => pd.ins.map(source => new FloatingInputChannel(source, floatingMappers(source))))
     val outputChannels = inputChannels.flatMap(_.lastMappers.map(BypassOutputChannel(_)))
     makeMscrs(inputChannels, outputChannels)
+  }
+
+  private [scoobi]
+  def floatingMappers(sourceNode: CompNode) = {
+    val floatings =
+      if (isFloating(sourceNode)) Seq(sourceNode)
+      else                        uses(sourceNode).filter(isFloating)
+
+    (floatings ++ floatings.flatMap(mappersUses).filterNot(isFloating)).collect(isAParallelDo).toSeq
   }
 
   /** Mscrs for mscrs built around gbk nodes */
@@ -162,71 +173,10 @@ trait MscrsDefinition extends Layering {
   }
 
   lazy val isReducer: ParallelDo => Boolean = attr("isReducer") {
-    case pd @ ParallelDo1(Combine1((gbk: GroupByKey)) +: rest) => rest.isEmpty && isUsedAtMostOnce(pd) && !hasMaterialisedEnv(pd)
-    case pd @ ParallelDo1((gbk: GroupByKey) +: rest)           => rest.isEmpty && isUsedAtMostOnce(pd) && !hasMaterialisedEnv(pd)
-    case pd if hasBeenFilled(pd.bridgeStore)                   => true
-    case _                                                     => false
-  }
-
-}
-
-/**
- * Simple layering algorithm using the Longest path method to assign nodes to layers.
- *
- * See here for a good overview: http://www.cs.brown.edu/~rt/gdhandbook/chapters/hierarchical.pdf
- *
- * In our case the layers have minimum height and possibly big width which is actually good if we run things in parallel
- */
-trait Layering extends ShowNode {
-
-  type T <: CompNode
-
-  /** a function to select only some nodes in the graph. They must be of type T */
-  def selectNode(n: CompNode): Boolean
-
-  lazy val selected: CompNode => Boolean = attr("selected node") { case n => selectNode(n) }
-  lazy val select: PartialFunction[CompNode, T] = { case n if n -> selected => n.asInstanceOf[T] }
-
-  lazy val selectedDescendents: CompNode => Seq[T] = attr("selected descendents") { case n =>
-    (n -> descendents).collect(select)
-  }
-
-  /** @return the layer that a selected node is in. None if this is not a selected node */
-  lazy val layer: CompNode => Option[Layer[T]] = attr("layer") { case n =>
-    layers(root(n)).find(_.nodes.contains(n))
-  }
-
-  lazy val layers: CompNode => Seq[Layer[T]] = attr("layers") { case n =>
-    val (leaves, nonLeaves) = selectedDescendents(n).partition { d =>
-      selectedDescendents(d).isEmpty
-    }
-    val leaf = if (leaves.isEmpty && selectNode(n)) Seq(select(n)) else Seq()
-    val result = Layer(leaves ++ leaf) +:
-                 nonLeaves.groupBy(_ -> longestPathTo(leaves)).toSeq.sortBy(_._1).map { case (k, v) => Layer(v) }
-    result.filterNot(_.isEmpty)
-  }
-
-  lazy val longestPathTo: Seq[CompNode] => CompNode => Int = paramAttr("longestPathToNodeFromSomeNodes") { (target: Seq[CompNode]) => node: CompNode =>
-    target.map(t => node -> longestPathToNode(t)).max
-  }
-
-  lazy val longestPathToNode: CompNode => CompNode => Int = paramAttr("longestPathToNodeFromOneNode") { (target: CompNode) => node: CompNode =>
-    if (node.id == target.id)        0  // found
-    else if (children(node).isEmpty) -1 // not found
-    else                             1 + children(node).map(_ -> longestPathToNode(target)).max
-  }
-
-  /**
-   * A layer contains group by keys and floating nodes defining mscrs so that none of them have dependencies relationship
-   *
-   * Because of this property they can be executed in parallel
-   */
-  case class Layer[T <: CompNode](nodes: Seq[T] = Seq[T]()) {
-    val id = UniqueId.get
-    lazy val gbks = nodes.collect(isAGroupByKey)
-
-    lazy val isEmpty = nodes.isEmpty
-    override def toString = nodes.mkString("Layer("+id+"\n  ", ",\n  ", ")\n")
+    case pd @ ParallelDo1(Combine1((gbk: GroupByKey)) +: rest)    => rest.isEmpty && isUsedAtMostOnce(pd) && !hasMaterialisedEnv(pd)
+    case pd @ ParallelDo1((gbk: GroupByKey) +: rest)              => rest.isEmpty && isUsedAtMostOnce(pd) && !hasMaterialisedEnv(pd)
+    case pd if pd.bridgeStore.map(hasBeenFilled).getOrElse(false) => true
+    case _                                                        => false
   }
 
 }

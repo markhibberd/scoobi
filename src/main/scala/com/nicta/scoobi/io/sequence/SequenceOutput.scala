@@ -31,6 +31,7 @@ import impl.ScoobiConfiguration._
 import impl.io.Helper
 import avro.AvroInput
 import sequence.SequenceInput.SeqSource
+import org.apache.hadoop.conf.Configuration
 
 /** Smart functions for persisting distributed lists by storing them as Sequence files. */
 object SequenceOutput {
@@ -112,24 +113,25 @@ object SequenceOutput {
 
     protected val outputPath = new Path(path)
 
-    val outputFormat = classOf[SequenceFileOutputFormat[K, V]]
-    val outputKeyClass = keyClass
-    val outputValueClass = valueClass
+    def outputFormat(implicit sc: ScoobiConfiguration) = classOf[SequenceFileOutputFormat[K, V]]
+    def outputKeyClass(implicit sc: ScoobiConfiguration) = keyClass
+    def outputValueClass(implicit sc: ScoobiConfiguration) = valueClass
 
     def outputCheck(implicit sc: ScoobiConfiguration) {
-      if (Helper.pathExists(outputPath)(sc))
-        if (overwrite) {
-          logger.info("Deleting the pre-existing output path: " + outputPath.toUri.toASCIIString)
-          Helper.deletePath(outputPath)(sc)
-        } else {
+      if (Helper.pathExists(outputPath)(sc) && !overwrite) {
           throw new FileAlreadyExistsException("Output path already exists: " + outputPath)
-        }
-      else
-        logger.info("Output path: " + outputPath.toUri.toASCIIString)
+      } else logger.info("Output path: " + outputPath.toUri.toASCIIString)
     }
 
     def outputConfigure(job: Job)(implicit sc: ScoobiConfiguration) {
       FileOutputFormat.setOutputPath(job, outputPath)
+    }
+
+    override def outputSetup(implicit configuration: Configuration) {
+      if (Helper.pathExists(outputPath)(configuration) && overwrite) {
+        logger.info("Deleting the pre-existing output path: " + outputPath.toUri.toASCIIString)
+        Helper.deletePath(outputPath)(configuration)
+      }
     }
 
     lazy val outputConverter = converter

@@ -60,7 +60,7 @@ trait CompNodeData extends Data with ScalaCheckMatchers with CommandLineArgument
 
   /** lists of elements with a simple type A */
   def genList1(depth: Int = 1): Gen[DList[String]] =
-    if (depth <= 1) Gen.value(DListImpl(source))
+    if (depth <= 1) Gen.value(DList("source"))
     else            Gen.oneOf(genList1(depth - 1).map(l => l.map(identity)),
                               genList2(depth - 1).map(l => l.map(_._1)),
                               genList3(depth - 1).map(l => l.map(_._1)),
@@ -70,7 +70,7 @@ trait CompNodeData extends Data with ScalaCheckMatchers with CommandLineArgument
   def genObject(depth: Int = 1): Gen[DObject[String]] =
     if (depth <= 1) DObjects("start")
     else            Gen.oneOf(genList(depth - 1).map(l => l.materialise.map(normalise)),
-                              ^(genObject(depth / 2), genObject(depth / 2))((_ join _)).map(o => o.map(_.toString))).memo
+                              ^(genObject(depth / 2), genObject(depth / 2))((_ zip _)).map(o => o.map(_.toString))).memo
 
   /** lists of elements with a type (K, V) */
   def genList2(depth: Int = 1): Gen[DList[(String, String)]] =

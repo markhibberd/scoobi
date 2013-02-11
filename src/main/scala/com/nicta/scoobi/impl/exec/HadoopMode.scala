@@ -63,7 +63,7 @@ case class HadoopMode(sc: ScoobiConfiguration) extends Optimiser with MscrsDefin
 
   private def truncateAlreadyExecutedNodes(node: CompNode) =
     truncate(node) {
-      case process: ProcessNode => hasBeenFilled(process.bridgeStore)
+      case process: ProcessNode => process.bridgeStore.map(hasBeenFilled).getOrElse(false)
       case other                => false
     }
 
@@ -72,6 +72,7 @@ case class HadoopMode(sc: ScoobiConfiguration) extends Optimiser with MscrsDefin
    */
   private
   lazy val executeNode: CompNode => Any = {
+    /** return the result of the last layer */
     def executeLayers(node: CompNode) {
       layers(node).debug("Executing layers", mkStrings).map(executeLayer)
     }
@@ -79,12 +80,12 @@ case class HadoopMode(sc: ScoobiConfiguration) extends Optimiser with MscrsDefin
     attr("executeNode") {
       case node @ Op1(in1, in2)    => node.execute(executeNode(in1), executeNode(in2))
       case node @ Return1(in)      => in
-      case node @ Materialise1(in) => executeLayers(node); read(in.bridgeStore)
+      case node @ Materialise1(in) => executeLayers(node); in.bridgeStore.map(read).getOrElse(Seq())
       case node                    => executeLayers(node)
     }
   }
 
-  private lazy val executeLayer: Layer[T] => Any =
+  private lazy val executeLayer: Layer[T] => Unit =
     attr("executeLayer") { case layer =>
       ("executing layer "+layer.id).debug
       Execution(layer).execute
@@ -95,12 +96,12 @@ case class HadoopMode(sc: ScoobiConfiguration) extends Optimiser with MscrsDefin
    */
   private case class Execution(layer: Layer[T]) {
 
-    def execute: Seq[Any] = {
+    def execute {
       ("Executing layer\n"+layer).debug
       runMscrs(mscrs(layer))
 
-      layerBridgeSinks(layer).debug("Layer bridges sinks: ").foreach(markBridgeAsFilled)
-      layerBridgeSinks(layer).map(read).toSeq
+      layerSinks(layer).debug("Layer sinks: ").foreach(markSinkAsFilled)
+      ("===== END OF LAYER "+layer.id+" ======").debug
     }
 
     /**
@@ -109,7 +110,7 @@ case class HadoopMode(sc: ScoobiConfiguration) extends Optimiser with MscrsDefin
      * Only the execution part is done concurrently, not the configuration.
      * This is to make sure that there is not undesirable race condition during the setting up of variables
      */
-    private def runMscrs(mscrs: Seq[Mscr]): Unit = {
+    private def runMscrs(mscrs: Seq[Mscr]) {
       ("executing mscrs"+mscrs.mkString("\n", "\n", "\n")).debug
 
       val configured = mscrs.toList.map(configureMscr)
@@ -137,14 +138,14 @@ case class HadoopMode(sc: ScoobiConfiguration) extends Optimiser with MscrsDefin
     /** report the execution of a Mscr */
     protected def reportMscr = (job: MapReduceJob) => {
       job.report
+      ("===== END OF MSCR "+job.mscr.id+" ======").debug
     }
   }
 
   /** @return the content of a Bridge as an Iterable */
   private def read(bs: Bridge): Any = {
     ("reading bridge "+bs.bridgeStoreId).debug
-    val result = Vector(bs.readAsIterable(sc).toSeq:_*)
-    result
+    Vector(bs.readAsIterable(sc).toSeq:_*)
   }
 
   /** make sure that all inputs environments are fully loaded */
@@ -152,7 +153,7 @@ case class HadoopMode(sc: ScoobiConfiguration) extends Optimiser with MscrsDefin
     node match {
       case rt @ Return1(in)      => pushEnv(rt, in)
       case op @ Op1(in1, in2)    => pushEnv(op, op.execute(load(in1), load(in2)))
-      case mt @ Materialise1(in) => pushEnv(mt, read(in.bridgeStore))
+      case mt @ Materialise1(in) => in.bridgeStore.map(bs => pushEnv(mt, read(bs))).getOrElse(Seq())
       case other                 => ()
     }
   }

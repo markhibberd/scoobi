@@ -19,7 +19,7 @@ package acceptance
 import impl.plan.comp._
 import testing.mutable.NictaSimpleJobs
 import impl.ScoobiConfiguration
-import core.DList
+import core.{ProcessNode, DList}
 import impl.plan.DListImpl
 
 class RandomDListsSpec extends NictaSimpleJobs with CompNodeData {
@@ -38,7 +38,7 @@ class RandomDListsSpec extends NictaSimpleJobs with CompNodeData {
 
   // this duplicate is to avoid some yet unexplained undue failures when running the tests
   def duplicate(list: DList[String]) = {
-    new DListImpl[String](Optimiser.reinitAttributable(Optimiser.duplicate(list.getComp).asInstanceOf[ProcessNode]))(list.wf)
+    new DListImpl[String](Optimiser.reinitAttributable(Optimiser.duplicate(list.getComp).asInstanceOf[ProcessNode]))
   }
 
 }
