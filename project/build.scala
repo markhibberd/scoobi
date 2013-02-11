@@ -155,7 +155,8 @@ object build extends Build {
     releaseProcess := Seq[ReleaseStep](
      // checkSnapshotDependencies,
      // updateLicences,
-      generateSite//,
+//      generateUserGuide,
+      generateReadMe//,
 //      inquireVersions,
 //      setReleaseVersion,
 //      commitReleaseVersion,
@@ -166,7 +167,9 @@ object build extends Build {
 //      pushChanges
     )
   ) ++
-  testTaskDefinition(generateSiteTask, Seq(Tests.Filter(_.endsWith("Index")), Tests.Argument("html")))
+  testTaskDefinition(generateUserGuideTask, Seq(Tests.Filter(_.endsWith("Index")), Tests.Argument("html"))) ++
+  testTaskDefinition(generateReadMeTask, Seq(Tests.Filter(_.endsWith("ReadMe")), Tests.Argument("markup"))) ++
+  testTaskDefinition(checkUrlsTask, Seq(Tests.Filter(_.endsWith("Index")), Tests.Argument("html", "checkurls")))
 
   def testTaskDefinition(task: TaskKey[Tests.Output], options: Seq[TestOption]) =
     Seq(testTask(task))                          ++
@@ -174,8 +177,16 @@ object build extends Build {
     inConfig(Test)(testTaskOptions(task))        ++
     (testOptions in (Test, task) ++= options)
 
-  lazy val generateSiteTask = TaskKey[Tests.Output]("generate-site", "generate the project site")
-  lazy val generateSite = executeTestTask(generateSiteTask, "Generating the User Guide")
+  lazy val generateUserGuideTask = TaskKey[Tests.Output]("generate-user-guide", "generate the user guide")
+  lazy val generateUserGuide     = executeTestTask(generateUserGuideTask, "Generating the User Guide")
+
+  lazy val generateReadMeTask = TaskKey[Tests.Output]("generate-readme", "generate the README")
+  lazy val generateReadMe     = executeTestTask(generateReadMeTask, "Generating the README")
+
+  lazy val checkUrlsTask = TaskKey[Tests.Output]("check-urls", "check the User Guide urls")
+  lazy val checkUrls     = executeTestTask(checkUrlsTask, "Checking the urls of the User Guide")
+
+
 
   lazy val updateLicences = ReleaseStep { st =>
     st.log.info("Updating the license headers")
