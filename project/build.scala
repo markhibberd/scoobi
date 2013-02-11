@@ -13,6 +13,7 @@ import ReleaseKeys._
 import ReleaseStateTransformations._
 import ls.Plugin._
 import Utilities._
+import Defaults._
 
 object build extends Build {
   type Settings = Project.Setting[_]
@@ -165,15 +166,10 @@ object build extends Build {
 //      pushChanges
     )
   ) ++
-  Defaults.defaultSettings ++
-  Defaults.compileSettings ++
-  Defaults.testSettings ++
-  Defaults.configSettings ++
-  Seq(configuration := Test) ++
-  (tags in releaseTest := Seq(Tags.Test -> 1)) ++
-  Defaults.testTaskOptions(releaseTest) ++
+  (tags in Test := Seq(Tags.Test -> 1)) ++
+  inConfig(Test)(testTaskOptions(releaseTest)) ++
   Seq(releaseExecuteImpl, releaseTestImpl) ++
-  (testOptions in (Test, releaseTest) ++= Seq(Tests.Filter(_.endsWith("Index")), Tests.Argument("html")))
+  (testOptions in Test ++= Seq(Tests.Filter(_.endsWith("Index")), Tests.Argument("html")))
 
   lazy val updateLicences = ReleaseStep { st =>
     st.log.info("Updating the license headers")
@@ -192,12 +188,12 @@ object build extends Build {
   lazy val releaseTest         = TaskKey[Unit]("release-test", "Executes tests for a release.")
 
   lazy val releaseExecuteImpl =
-    releaseExecuteTests <<= (streams in test, loadedTestFrameworks, testLoader, testGrouping in test, testExecution in test, fullClasspath in test, javaHome in test) flatMap Defaults.allTestGroupsTask
+    releaseExecuteTests <<= (streams in test, loadedTestFrameworks in Test, testLoader in Test, testGrouping in Test in test, testExecution in Test in test, fullClasspath in Test in test, javaHome in test) flatMap Defaults.allTestGroupsTask
 
   lazy val releaseTestImpl =
-    releaseTest <<= (releaseExecuteTests, streams in test, resolvedScoped, state) map { (results, s, scoped, st) =>
+    releaseTest <<= (streams, state, releaseExecuteTests, resolvedScoped) map { (s, st, res, rs) =>
       implicit val display = Project.showContextKey(st)
-      Tests.showResults(s.log, results, "No tests to run for " + display(scoped))
+      Tests.showResults(s.log, res, "No tests to run for " + display(rs))
     }
 
   private def commitCurrent(commitMessage: String): State => State = { st: State =>

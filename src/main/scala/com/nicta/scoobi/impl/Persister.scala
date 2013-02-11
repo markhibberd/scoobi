@@ -18,7 +18,7 @@ package impl
 
 import org.apache.commons.logging.LogFactory
 import exec.{HadoopMode, InMemoryMode}
-import core.{DObject, DList, ScoobiConfiguration, Persistent}
+import core.{DObject, DList, Persistent}
 import plan.comp._
 import core.Mode._
 
