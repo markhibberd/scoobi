@@ -181,7 +181,11 @@ object build extends Build {
   lazy val generateUserGuide     = executeTestTask(generateUserGuideTask, "Generating the User Guide")
 
   lazy val generateReadMeTask = TaskKey[Tests.Output]("generate-readme", "generate the README")
-  lazy val generateReadMe     = executeTestTask(generateReadMeTask, "Generating the README")
+  lazy val generateReadMe     = ReleaseStep { st: State =>
+    executeTestTask(generateReadMeTask, "Generating the README file").apply(st)
+    IO.copyFile(file("target/specs2-reports/README.md"), file("README.md"))
+    st
+  }
 
   lazy val checkUrlsTask = TaskKey[Tests.Output]("check-urls", "check the User Guide urls")
   lazy val checkUrls     = executeTestTask(checkUrlsTask, "Checking the urls of the User Guide")
