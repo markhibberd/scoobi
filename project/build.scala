@@ -1,6 +1,7 @@
 import sbt._
 import Keys._
 import com.typesafe.sbt._
+import pgp.PgpKeys._
 import SbtSite._
 import SiteKeys._
 import SbtGit._
@@ -175,7 +176,7 @@ object build extends Build {
       generateUserGuide,
       generateReadMe,
       tagRelease,
-      publishArtifacts,
+      publishSignedArtifacts,
       notifyLs,
       notifyHerald,
       setNextVersion,
@@ -225,6 +226,25 @@ object build extends Build {
     task <<= (streams in Test, loadedTestFrameworks in Test, testLoader in Test,
       testGrouping in Test in test, testExecution in Test in task,
       fullClasspath in Test in test, javaHome in test) flatMap Defaults.allTestGroupsTask
+
+  /**
+   * PUBLICATION
+   */
+  lazy val publishSignedArtifacts = ReleaseStep(
+    action = publishSignedArtifactsAction,
+    check = st => {
+      // getPublishTo fails if no publish repository is set up.
+      val ex = st.extract
+      val ref = ex.get(thisProjectRef)
+      Classpaths.getPublishTo(ex.get(publishTo in Global in ref))
+      st
+    }
+  )
+  lazy val publishSignedArtifactsAction = { st: State =>
+    val extracted = st.extract
+    val ref = extracted.get(thisProjectRef)
+    extracted.runAggregated(publishSigned in Global in ref, st)
+  }
 
   /**
    * NOTIFICATION
