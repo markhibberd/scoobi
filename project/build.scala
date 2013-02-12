@@ -176,7 +176,8 @@ object build extends Build {
       generateReadMe,
       tagRelease,
       publishArtifacts,
-      publishToLs,
+      notifyLs,
+      notifyHerald,
       setNextVersion,
       commitNextVersion,
       pushChanges
@@ -228,7 +229,13 @@ object build extends Build {
   /**
    * NOTIFICATION
    */
-  lazy val publishToLs = ReleaseStep { st: State =>
+  lazy val notifyLs = ReleaseStep { st: State =>
+    val st2 = executeTask(writeVersion, "writing ls.implicit.ly dependencies")(st)
+    val st3 = commitCurrent("added a new ls file")(st2)
+    val st4 = pushCurrent(st3)
+    executeTask(lsync, "synchronizing with the ls.implict.ly website")(st4)
+  }
+  lazy val notifyHerald = ReleaseStep { st: State =>
     val st2 = executeTask(writeVersion, "writing ls.implicit.ly dependencies")(st)
     val st3 = commitCurrent("added a new ls file")(st2)
     val st4 = pushCurrent(st3)
