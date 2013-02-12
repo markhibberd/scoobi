@@ -236,7 +236,10 @@ object build extends Build {
     executeTask(lsync, "Synchronizing with the ls.implict.ly website")(st4)
   }
   lazy val notifyHerald = ReleaseStep (
-    action = (st: State) => { Process("herald &").lines; st.log.info("Starting herald to publish the release notes"); st },
+    action = (st: State) => {
+      Process("herald &").lines; st.log.info("Starting herald to publish the release notes"); st
+      commitCurrent("Updated the release notes")(st)
+    },
     check  = (st: State) => { if ("which herald".!<(st.log) != 0) sys.error("You must install 'herald': http://github.com/n8han/herald on your machine"); st }
   )
 
