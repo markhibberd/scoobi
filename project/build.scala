@@ -168,20 +168,21 @@ object build extends Build {
     ReleasePlugin.releaseSettings ++ Seq(
     tagName <<= (version in ThisBuild) map (v => "SCOOBI-" + v),
     releaseProcess := Seq[ReleaseStep](
-      checkSnapshotDependencies,
-      updateLicences,
+//      checkSnapshotDependencies,
+//      updateLicences,
       inquireVersions,
       setReleaseVersion,
-      commitReleaseVersion,
-      generateUserGuide,
-      generateReadMe,
-      tagRelease,
-      publishSignedArtifacts,
-      notifyLs,
-      notifyHerald,
-      setNextVersion,
-      commitNextVersion,
-      pushChanges
+//      commitReleaseVersion,
+//      generateUserGuide,
+//      generateReadMe,
+//      tagRelease,
+//      publishSignedArtifacts,
+//      notifyLs,
+//      notifyHerald,
+//      setNextVersion,
+//      commitNextVersion,
+//      pushChanges,
+      publishForCDH3
     )
   ) ++
   documentationSettings
@@ -244,6 +245,14 @@ object build extends Build {
     val extracted = st.extract
     val ref = extracted.get(thisProjectRef)
     extracted.runAggregated(publishSigned in Global in ref, st)
+  }
+
+  lazy val publishForCDH3 = ReleaseStep { st: State =>
+    st.log.info("Publishing for CDH3")
+    // this specific commit changes the necessary files for working with CDH3
+    "git cherry-pick 33333" !! st.log
+    val st2 = reapply(Seq(version in ThisBuild <<= version { v => v.replace("cdh4", "cdh3") }), st)
+    publishSignedArtifactsAction(st2)
   }
 
   /**
