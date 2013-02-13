@@ -250,9 +250,14 @@ object build extends Build {
   lazy val publishForCDH3 = ReleaseStep { st: State =>
     st.log.info("Publishing for CDH3")
     // this specific commit changes the necessary files for working with CDH3
-    "git cherry-pick 33333" !! st.log
-    val st2 = reapply(Seq(version in ThisBuild <<= version { v => v.replace("cdh4", "cdh3") }), st)
-    publishSignedArtifactsAction(st2)
+    "git cherry-pick -n 8146672" !! st.log
+    val st2 = reapply(Seq(version in ThisBuild <<= version { v => {println("the current version is "+v+" the next is "+v.replace("cdh4", "cdh3")); v.replace("cdh4", "cdh3") }}), st)
+    try {
+      publishSignedArtifactsAction(st2)
+    } finally {
+      st.log.info("Reverting the CDH3 changes")
+      "git reset --hard HEAD" !! st.log
+    }
   }
 
   /**
