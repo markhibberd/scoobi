@@ -22,6 +22,10 @@ import Scoobi._
 import impl.plan.comp.CompNodeData
 import CompNodeData._
 import TestFiles._
+import impl.Configurations._
+import impl.ScoobiConfigurationImpl
+import impl.plan.mscr.Mscr
+import collection.mutable.ListBuffer
 
 class PersistSpec extends NictaSimpleJobs with ResultFiles {
   
@@ -178,5 +182,24 @@ class PersistSpec extends NictaSimpleJobs with ResultFiles {
 
     val plusTwo = plusOne.map(_ + 2)
     normalise(plusTwo.run) === "Vector(4, 5, 6)"
+  }
+
+  "13. When a list has been executed, no more map reduce job should be necessary to read data from it" >> { implicit sc: SC =>
+
+    // make sure that the configuration is not duplicated before executing the job
+    // so that the job step stays configured
+    val jobIds = new ListBuffer[Int]
+    val scoobiConfiguration = new ScoobiConfigurationImpl(sc.configuration) {
+      override def duplicate = this
+      override def jobStep(mscrId: Int) = {
+        jobIds += mscrId
+        "Mscr-"+mscrId
+      }
+    }
+    val list = DList(1, 2, 3)
+    list.persist(scoobiConfiguration)
+    list.run(scoobiConfiguration).take(10)
+
+    "there was only one mscr job" ==> { jobIds.distinct.size must be_==(1).when(!sc.isInMemory) }
   }
 }

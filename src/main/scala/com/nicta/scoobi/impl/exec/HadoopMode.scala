@@ -123,10 +123,10 @@ case class HadoopMode(sc: ScoobiConfiguration) extends Optimiser with MscrsDefin
     private def configureMscr = (mscr: Mscr) => {
       implicit val mscrConfiguration = sc.duplicate
 
-      ("Loading input nodes for mscr "+mscr.id+"\n"+mscr.inputNodes.mkString("\n")).debug
+      ("Loading input nodes for mscr "+mscr.id).debug
       mscr.inputNodes.foreach(load)
 
-      ("Configuring mscr "+mscr.id+"\n"+mscr.inputNodes.mkString("\n")).debug
+      ("Configuring mscr "+mscr.id).debug
       MapReduceJob(mscr, layer.id).configure
     }
 
@@ -145,7 +145,7 @@ case class HadoopMode(sc: ScoobiConfiguration) extends Optimiser with MscrsDefin
   /** @return the content of a Bridge as an Iterable */
   private def read(bs: Bridge): Any = {
     ("reading bridge "+bs.bridgeStoreId).debug
-    Vector(bs.readAsIterable(sc).toSeq:_*)
+    bs.readAsIterable(sc)
   }
 
   /** make sure that all inputs environments are fully loaded */
