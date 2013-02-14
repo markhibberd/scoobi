@@ -151,8 +151,8 @@ object build extends Build {
           <url>http://etorreborre.blogspot.com/</url>
         </developer>
       </developers>
-    )//,
-    //credentials := Seq(Credentials(Path.userHome / ".sbt" / "scoobi.credentials"))
+    ),
+    credentials := Seq(Credentials(Path.userHome / ".sbt" / "scoobi.credentials"))
   )
 
   /**
