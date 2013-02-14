@@ -152,7 +152,7 @@ object build extends Build {
         </developer>
       </developers>
     ),
-    credentials += Credentials(Path.userHome / ".sbt" / "scoobi.credentials")
+    credentials := Seq(Credentials(Path.userHome / ".sbt" / "scoobi.credentials"))
   )
 
   /**
