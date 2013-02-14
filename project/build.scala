@@ -152,7 +152,7 @@ object build extends Build {
         </developer>
       </developers>
     ),
-    credentials := Seq(Credentials(Path.userHome / ".sbt" / "scoobi.credentials"))
+    credentials := {println("hey");Seq(Credentials(Path.userHome / ".sbt" / "scoobi.credentials"))}
   )
 
   /**
