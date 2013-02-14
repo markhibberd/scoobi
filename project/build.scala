@@ -242,7 +242,8 @@ object build extends Build {
 
     try {
       val extracted = Project.extract(st)
-      val st2 = extracted.append(List(version in ThisBuild ~= (_.replace("cdh4", "cdh3"))), st)
+      val ref: ProjectRef = extracted.get(thisProjectRef)
+      val st2 = extracted.append(List(version in ThisBuild in ref ~= (_.replace("cdh4", "cdh3"))), st)
       executeTask(publishSigned, "Publishing CDH3 signed artifacts")(st2)
     } finally {
       st.log.info("Reverting the CDH3 changes")
