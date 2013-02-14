@@ -43,12 +43,15 @@ object build extends Build {
     scalaVersion := "2.9.2")
 
   lazy val dependenciesSettings: Seq[Settings] = Seq(
-    libraryDependencies := Seq(
+    libraryDependencies <<= (version) { version =>
+      val hadoop =
+        if (version.contains("cdh3")) Seq("org.apache.hadoop" % "hadoop-core" % "0.20.2-cdh3u1")
+        else                          Seq("org.apache.hadoop" % "hadoop-client" % "2.0.0-mr1-cdh4.0.1",
+          "org.apache.hadoop" % "hadoop-core" % "2.0.0-mr1-cdh4.0.1")
+      hadoop ++ Seq(
       "javassist" % "javassist" % "3.12.1.GA",
       "org.apache.avro" % "avro-mapred" % "1.7.3.1",
       "org.apache.avro" % "avro" % "1.7.3.1",
-      "org.apache.hadoop" % "hadoop-client" % "2.0.0-mr1-cdh4.0.1",
-      "org.apache.hadoop" % "hadoop-core" % "2.0.0-mr1-cdh4.0.1",
       "com.thoughtworks.xstream" % "xstream" % "1.4.3" intransitive(),
       "com.googlecode.kiama" %% "kiama" % "1.4.0",
       "com.github.mdr" %% "ascii-graphs" % "0.0.2",
@@ -65,7 +68,7 @@ object build extends Build {
       "junit" % "junit" % "4.7" % "test",
       "org.apache.commons" % "commons-math" % "2.2" % "test",
       "org.apache.commons" % "commons-compress" % "1.0" % "test"
-    ),
+    ) },
     resolvers ++= Seq("nicta's avro" at "http://nicta.github.com/scoobi/releases",
       "cloudera" at "https://repository.cloudera.com/content/repositories/releases",
       "sonatype" at "http://oss.sonatype.org/content/repositories/snapshots")
@@ -235,7 +238,7 @@ object build extends Build {
 
   lazy val publishForCDH3 = ReleaseStep { st: State =>
     // this specific commit changes the necessary files for working with CDH3
-    "git cherry-pick -n 8146672" !! st.log
+      "git cherry-pick -n 3999928" !! st.log
 
     try {
       val extracted = Project.extract(st)
