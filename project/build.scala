@@ -32,7 +32,7 @@ object build extends Build {
                publicationSettings      ++
                notificationSettings     ++
                releaseSettings
-  ) aggregate (fatjar, pageRank, scoobding, wordCount)
+  ) 
 
   lazy val scoobiVersion = SettingKey[String]("scoobi-version", "defines the current Scoobi version")
   lazy val scoobiSettings: Seq[Settings] = Seq(
