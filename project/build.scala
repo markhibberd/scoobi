@@ -203,19 +203,19 @@ object build extends Build {
 
   lazy val generateUserGuideTask = TaskKey[Tests.Output]("generate-user-guide", "generate the user guide")
   lazy val generateUserGuide     = ReleaseStep { st: State =>
-    val st2 = executeStepTask(generateUserGuideTask, "Generating the User Guide")(st)
+    val st2 = executeStepTask(generateUserGuideTask, "Generating the User Guide", Test)(st)
     commitCurrent("updated the UserGuide")(st2)
   }
 
   lazy val generateReadMeTask = TaskKey[Tests.Output]("generate-readme", "generate the README")
   lazy val generateReadMe     = ReleaseStep { st: State =>
-    val st2 = executeStepTask(generateReadMeTask, "Generating the README file")(st)
+    val st2 = executeStepTask(generateReadMeTask, "Generating the README file", Test)(st)
     IO.copyFile(file("target/specs2-reports/README.md"), file("README.md"))
     commitCurrent("updated the README file")(st2)
   }
 
   lazy val checkUrlsTask = TaskKey[Tests.Output]("check-urls", "check the User Guide urls")
-  lazy val checkUrls     = executeStepTask(checkUrlsTask, "Checking the urls of the User Guide")
+  lazy val checkUrls     = executeStepTask(checkUrlsTask, "Checking the urls of the User Guide", Test)
 
   def testTaskDefinition(task: TaskKey[Tests.Output], options: Seq[TestOption]) =
     Seq(testTask(task))                          ++
@@ -231,29 +231,16 @@ object build extends Build {
   /**
    * PUBLICATION
    */
-  lazy val publishSignedArtifacts = ReleaseStep(
-    action = publishSignedArtifactsAction,
-    check = st => {
-      // getPublishTo fails if no publish repository is set up.
-      val ex = st.extract
-      val ref = ex.get(thisProjectRef)
-      Classpaths.getPublishTo(ex.get(publishTo in Global in ref))
-      st
-    }
-  )
-  lazy val publishSignedArtifactsAction = { st: State =>
-    val extracted = st.extract
-    val ref = extracted.get(thisProjectRef)
-    extracted.runAggregated(publishSigned in Global in ref, st)
-  }
+  lazy val publishSignedArtifacts = executeStepTask(publishSigned, "Publishing signed artifacts")
 
   lazy val publishForCDH3 = ReleaseStep { st: State =>
-    st.log.info("Publishing for CDH3")
     // this specific commit changes the necessary files for working with CDH3
     "git cherry-pick -n 8146672" !! st.log
-    val st2 = reapply(Seq(version in ThisBuild <<= version { v => {println("the current version is "+v+" the next is "+v.replace("cdh4", "cdh3")); v.replace("cdh4", "cdh3") }}), st)
+
     try {
-      publishSignedArtifactsAction(st2)
+      val extracted = Project.extract(st)
+      val st2 = extracted.append(List(version in ThisBuild ~= (_.replace("cdh4", "cdh3"))), st)
+      executeTask(publishSigned, "Publishing CDH3 signed artifacts")(st2)
     } finally {
       st.log.info("Reverting the CDH3 changes")
       "git reset --hard HEAD" !! st.log
@@ -288,7 +275,18 @@ object build extends Build {
     st.log.info(info)
     val extracted = Project.extract(st)
     val ref: ProjectRef = extracted.get(thisProjectRef)
-    extracted.runTask(task in Test in ref, st)._1
+    extracted.runTask(task in ref, st)._1
+  }
+
+  private def executeStepTask(task: TaskKey[_], info: String, configuration: Configuration) = ReleaseStep { st: State =>
+    executeTask(task, info, configuration)(st)
+  }
+
+  private def executeTask(task: TaskKey[_], info: String, configuration: Configuration) = (st: State) => {
+    st.log.info(info)
+    val extracted = Project.extract(st)
+    val ref: ProjectRef = extracted.get(thisProjectRef)
+    extracted.runTask(task in configuration in ref, st)._1
   }
 
   private def commitCurrent(commitMessage: String): State => State = { st: State =>
