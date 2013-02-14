@@ -151,7 +151,8 @@ object build extends Build {
           <url>http://etorreborre.blogspot.com/</url>
         </developer>
       </developers>
-    )
+    ),
+    credentials += Credentials(Path.userHome / ".sbt" / "scoobi.credentials")
   )
 
   /**
@@ -171,20 +172,20 @@ object build extends Build {
     ReleasePlugin.releaseSettings ++ Seq(
     tagName <<= (version in ThisBuild) map (v => "SCOOBI-" + v),
     releaseProcess := Seq[ReleaseStep](
-//      checkSnapshotDependencies,
-//      updateLicences,
+      checkSnapshotDependencies,
+      updateLicences,
       inquireVersions,
       setReleaseVersion,
-//      commitReleaseVersion,
-//      generateUserGuide,
-//      generateReadMe,
-//      tagRelease,
-//      publishSignedArtifacts,
-//      notifyLs,
-//      notifyHerald,
-//      setNextVersion,
-//      commitNextVersion,
-//      pushChanges,
+      commitReleaseVersion,
+      generateUserGuide,
+      generateReadMe,
+      tagRelease,
+      publishSignedArtifacts,
+      notifyLs,
+      notifyHerald,
+      setNextVersion,
+      commitNextVersion,
+      pushChanges,
       publishForCDH3
     )
   ) ++
