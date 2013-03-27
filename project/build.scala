@@ -57,7 +57,7 @@ object build extends Build {
     name := "scoobi",
     organization := "com.nicta",
     scoobiVersion in GlobalScope <<= version,
-    scalaVersion := "2.10.0")
+    scalaVersion := "2.9.2")
 
   lazy val dependenciesSettings: Seq[Settings] = Seq(
     libraryDependencies <<= (version, scalaVersion) { (version, scalaVersion) =>
@@ -95,7 +95,7 @@ object build extends Build {
       "org.apache.commons"       %  "commons-math"              % "2.2"              % "test",
       "org.apache.commons"       %  "commons-compress"          % "1.0"              % "test"
     ) },
-    resolvers ++= Seq("nicta's avro" at "http://nicta.github.com/scoobi/releases",
+    resolvers ++= Seq("nicta" at "http://nicta.github.com/scoobi/releases",
       "cloudera" at "https://repository.cloudera.com/content/repositories/releases",
       "sonatype-releases" at "http://oss.sonatype.org/content/repositories/releases",
       "sonatype-snapshots" at "http://oss.sonatype.org/content/repositories/snapshots")
@@ -103,7 +103,13 @@ object build extends Build {
 
   lazy val compilationSettings: Seq[Settings] = Seq(
     (sourceGenerators in Compile) <+= (sourceManaged in Compile) map GenWireFormat.gen,
-    scalacOptions ++= Seq("-deprecation", "-unchecked", "-feature", "-language:implicitConversions,reflectiveCalls,postfixOps,higherKinds,existentials")
+    scalacOptions <++= scalaVersion map { (scalaVersion: String) =>
+      scalaVersion match {
+        case scalaVersionRegex(major, minor) if major.toInt > 2 || (major == "2" && minor.toInt >= 10) =>
+          Seq("-unchecked", "-feature", "-language:implicitConversions,reflectiveCalls,postfixOps,higherKinds,existentials")
+        case _ => Seq("-deprecation", "-unchecked", "-Ydependent-method-types")
+      }
+    }
   )
 
   lazy val testingSettings: Seq[Settings] = Seq(
@@ -381,6 +387,7 @@ object build extends Build {
     st.extract.get(versionControlSystem).getOrElse(sys.error("Aborting release. Working directory is not a repository of a recognized VCS."))
   }
 
+  private val scalaVersionRegex = "(\\d+)\\.(\\d+).*".r
 }
 
 

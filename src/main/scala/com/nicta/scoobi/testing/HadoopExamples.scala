@@ -74,7 +74,7 @@ trait HadoopExamples extends Hadoop with CommandLineScoobiUserArgs with Cluster 
   /** @return a context chaining a sequence of contexts */
   def chain(contexts: Seq[HadoopContext]) = new HadoopContext {
     def outside = ScoobiConfiguration()
-    override def apply[R : AsResult](a: ScoobiConfiguration => R) = {
+    override def apply[R <% Result](a: ScoobiConfiguration => R) = {
       changeSeparator(contexts.toList.foldLeft(success: Result) { (result, context) => result and context(a) })
     }
   }
@@ -93,7 +93,7 @@ trait HadoopExamples extends Hadoop with CommandLineScoobiUserArgs with Cluster 
   class SkippedHadoopContext(name: String) extends HadoopContext {
     def outside = configureForLocal(ScoobiConfiguration())
 
-    override def apply[R : AsResult](a: ScoobiConfiguration => R) =
+    override def apply[R <% Result](a: ScoobiConfiguration => R) =
       Skipped("excluded", "No "+name+" execution"+time_?)
   }
   /**
@@ -102,7 +102,7 @@ trait HadoopExamples extends Hadoop with CommandLineScoobiUserArgs with Cluster 
   class InMemoryHadoopContext extends HadoopContext {
     def outside = configureForInMemory(ScoobiConfiguration())
 
-    override def apply[R : AsResult](a: ScoobiConfiguration => R) =
+    override def apply[R <% Result](a: ScoobiConfiguration => R) =
       inMemory(cleanup(a).apply(outside))
   }
   /**
@@ -111,7 +111,7 @@ trait HadoopExamples extends Hadoop with CommandLineScoobiUserArgs with Cluster 
   class LocalHadoopContext extends HadoopContext {
     def outside = configureForLocal(ScoobiConfiguration())
 
-    override def apply[R : AsResult](a: ScoobiConfiguration => R) =
+    override def apply[R <% Result](a: ScoobiConfiguration => R) =
       locally(cleanup(a).apply(outside))
   }
 
@@ -121,7 +121,7 @@ trait HadoopExamples extends Hadoop with CommandLineScoobiUserArgs with Cluster 
   class ClusterHadoopContext extends HadoopContext {
     def outside = configureForCluster(ScoobiConfiguration())
 
-    override def apply[R : AsResult](a: ScoobiConfiguration => R) =
+    override def apply[R <% Result](a: ScoobiConfiguration => R) =
       remotely(cleanup(a).apply(outside))
 
     override def isRemote = true
