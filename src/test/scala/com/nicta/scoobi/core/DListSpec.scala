@@ -202,6 +202,13 @@ class DListSpec extends NictaSimpleJobs with TerminationMatchers with ScalaCheck
       check { Prop.forAllNoShrink(genWeights, arbitrary[List[Int]])(prop) }
     }
   }
+
+  "Filter with side-effect only runs once" >> { implicit sc: SC =>
+    val xs = (1 to 5000).toDList filter (x => scala.util.Random.nextDouble() > 0.5)
+    val result = (xs.size join xs.map(x => x)).materialise.run
+    val size = result.size
+    result.map(_._1) must contain(be_==(size)).forall
+  }
 }
 
 case class PoorHashString(s: String) {
