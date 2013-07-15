@@ -202,7 +202,18 @@ class DListSpec extends NictaSimpleJobs with TerminationMatchers with ScalaCheck
       check { Prop.forAllNoShrink(genWeights, arbitrary[List[Int]])(prop) }
     }
   }
+
+  "Concatenation with fromTextFile of empty list does not duplicate file input" >> { implicit sc: SC =>
+    import testing.TestFiles._
+    import testing.{TestFiles, TempFiles}
+    implicit val fs = sc.fileSystem
+
+    val input = TempFiles.writeLines(createTempFile("test"), Seq("a", "b"), isRemote)
+    val concat = fromTextFile(input).map(el => "first:" + el) ++ fromTextFile(List()).map(el => "second:" + el)
+    concat.run ==== Vector("first:a", "first:b")
+  }
 }
+
 
 case class PoorHashString(s: String) {
   override def hashCode() = s.hashCode() & 0xff
